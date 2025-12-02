@@ -1,4 +1,41 @@
-name: moneyprinterplugin
-version: '1.0-SNAPSHOT'
+name: MoneyPrinterPlugin
+version: '${version}'
 main: io.github.banditdevdk.moneyprinterplugin.MoneyPrinterPlugin
 api-version: '1.20'
+depend: [Vault]
+author: BanditDevDK
+description: Money printer plugin with customizable tiers and fuel system
+
+commands:
+  mp:
+    description: Main money printer command
+    usage: /mp <help|remove|give|list|reload>
+  moneyprinter:
+    description: Alias for mp command
+    usage: /moneyprinter <help|remove|give|list|reload>
+  printer:
+    description: Alias for mp command
+    usage: /printer <help|remove|give|list|reload>
+
+permissions:
+  printer.use:
+    description: Allows using money printers
+    default: true
+  printer.remove:
+    description: Allows removing own printers
+    default: true
+  printer.admin:
+    description: Admin commands
+    default: op
+  printer.tier.1:
+    description: Access to tier 1 printers
+    default: true
+  printer.tier.2:
+    description: Access to tier 2 printers
+    default: true
+  printer.tier.3:
+    description: Access to tier 3 printers
+    default: true
+  printer.tier.4:
+    description: Access to tier 4 printers
+    default: true
