@@ -7,10 +7,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.profile.PlayerProfile;
+import org.bukkit.profile.PlayerTextures;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.*;
 
 /**
  * Handles GUI creation and updates
@@ -96,7 +99,7 @@ public class PrinterGUI {
     }
 
     /**
-     * Update GUI content
+     * Update GUI content with modern design
      */
     private void updateGUIContent(Inventory inv, Location loc) {
         PrinterData.PrinterInfo printer = plugin.getPrinterData().getPrinter(loc);
@@ -105,74 +108,124 @@ public class PrinterGUI {
         }
 
         ConfigManager config = plugin.getConfigManager();
+        ConfigManager.TierConfig tierConfig = config.getTier(printer.getTier());
 
         // Fill with background filler
-        ItemStack filler = createItem(config.getGUIFiller(), config.getGUIFillerName());
+        ItemStack filler = createItem(config.getGUIFiller(), config.getGUIFillerName(), null);
         for (int i = 0; i < inv.getSize(); i++) {
             inv.setItem(i, filler);
         }
 
-        // Create placeholders for buttons
+        // Create placeholders for all buttons
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("fuel", printer.getFormattedFuelTime());
-        placeholders.put("tier", String.valueOf(printer.getTier()));
+        placeholders.put("tier", tierConfig != null ? tierConfig.getName() : String.valueOf(printer.getTier()));
         placeholders.put("money", String.format("%.2f", printer.getEarnings()));
+        placeholders.put("earnings", tierConfig != null ? String.format("%.2f", tierConfig.getEarnings()) : "0.00");
+        placeholders.put("max-fuel", String.valueOf(config.getMaxFuelMinutes()));
 
-        ConfigManager.TierConfig tierConfig = config.getTier(printer.getTier());
-        if (tierConfig != null) {
-            placeholders.put("tier-name", tierConfig.getName());
+        // Status display (top center) - using printer head with tier texture
+        ItemStack statusItem = createPrinterHead(tierConfig);
+        ItemMeta statusMeta = statusItem.getItemMeta();
+        if (statusMeta != null) {
+            statusMeta.setDisplayName(config.getButtonName("status", placeholders));
+            statusMeta.setLore(config.getButtonLore("status", placeholders));
+            statusItem.setItemMeta(statusMeta);
+        }
+        inv.setItem(config.getButtonSlot("status"), statusItem);
+
+        // Add fuel button (only if fuel is enabled)
+        if (config.isFuelEnabled()) {
+            Material fuelMaterial = config.getButtonMaterial("add-fuel");
+            String fuelButtonName = config.getButtonName("add-fuel", placeholders);
+            List<String> fuelLore = config.getButtonLore("add-fuel", placeholders);
+            inv.setItem(config.getButtonSlot("add-fuel"), createItem(fuelMaterial, fuelButtonName, fuelLore));
         }
 
-        // Add fuel button
-        Material fuelMaterial = config.getButtonMaterial("add-fuel");
-        placeholders.put("fuel", config.getFuelMaterial().name().toLowerCase().replace("_", " "));
-        String fuelButtonName = config.getButtonName("add-fuel", placeholders);
-        inv.setItem(config.getButtonSlot("add-fuel"), createItem(fuelMaterial, fuelButtonName));
-
         // Collect money button
-        placeholders.put("money", String.format("%.2f", printer.getEarnings()));
         Material collectMaterial = config.getButtonMaterial("collect-money");
         String collectButtonName = config.getButtonName("collect-money", placeholders);
-        inv.setItem(config.getButtonSlot("collect-money"), createItem(collectMaterial, collectButtonName));
+        List<String> collectLore = config.getButtonLore("collect-money", placeholders);
+        inv.setItem(config.getButtonSlot("collect-money"), createItem(collectMaterial, collectButtonName, collectLore));
 
-        // Status button
-        placeholders.put("fuel", printer.getFormattedFuelTime());
-        placeholders.put("tier", tierConfig != null ? tierConfig.getName() : String.valueOf(printer.getTier()));
-        Material statusMaterial = config.getButtonMaterial("status");
-        String statusButtonName = config.getButtonName("status", placeholders);
-        inv.setItem(config.getButtonSlot("status"), createItem(statusMaterial, statusButtonName));
+        // Upgrade button - changes based on current tier
+        ConfigManager.TierConfig nextTier = config.getNextTier(printer.getTier());
 
-        // Upgrade buttons
-        for (int tier : config.getTiers().keySet()) {
-            ConfigManager.TierConfig upgradeTier = config.getTier(tier);
-            if (upgradeTier == null) continue;
+        if (nextTier != null) {
+            // There is a next tier available
+            placeholders.put("next-tier", nextTier.getName());
+            placeholders.put("cost", String.format("%.2f", nextTier.getUpgradeCost()));
+            placeholders.put("next-earnings", String.format("%.2f", nextTier.getEarnings()));
 
-            String buttonKey = "upgrade-tier-" + tier;
+            Material upgradeMaterial = config.getButtonMaterial("upgrade");
+            String upgradeName = config.getButtonName("upgrade", placeholders);
+            List<String> upgradeLore = config.getButtonLore("upgrade", placeholders);
 
-            // Only show upgrade buttons for higher tiers
-            if (tier <= printer.getTier()) {
-                continue;
+            inv.setItem(config.getButtonSlot("upgrade"), createItem(upgradeMaterial, upgradeName, upgradeLore));
+        } else {
+            // At max tier
+            String maxTierMaterial = config.getConfig().getString("gui.buttons.upgrade.max-tier-material", "BARRIER");
+            Material material;
+            try {
+                material = Material.valueOf(maxTierMaterial.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                material = Material.BARRIER;
             }
 
-            placeholders.put("cost", String.format("%.2f", upgradeTier.getUpgradeCost()));
-            placeholders.put("earnings", String.format("%.2f", upgradeTier.getEarnings()));
-            placeholders.put("tier", upgradeTier.getName());
+            String maxTierName = config.getConfig().getString("gui.buttons.upgrade.max-tier-name", "§c&lMax Tier Reached");
+            maxTierName = org.bukkit.ChatColor.translateAlternateColorCodes('&', maxTierName);
 
-            Material upgradeMaterial = config.getButtonMaterial(buttonKey);
-            String upgradeButtonName = config.getButtonName(buttonKey, placeholders);
+            List<String> maxTierLore = config.getConfig().getStringList("gui.buttons.upgrade.max-tier-lore");
+            List<String> coloredMaxLore = new ArrayList<>();
+            for (String line : maxTierLore) {
+                coloredMaxLore.add(org.bukkit.ChatColor.translateAlternateColorCodes('&', line));
+            }
 
-            inv.setItem(config.getButtonSlot(buttonKey), createItem(upgradeMaterial, upgradeButtonName));
+            inv.setItem(config.getButtonSlot("upgrade"), createItem(material, maxTierName, coloredMaxLore));
         }
     }
 
     /**
-     * Create an item with a display name
+     * Create a printer head item with custom texture
      */
-    private ItemStack createItem(Material material, String name) {
+    private ItemStack createPrinterHead(ConfigManager.TierConfig tierConfig) {
+        ItemStack item = new ItemStack(Material.PLAYER_HEAD);
+
+        if (tierConfig != null && tierConfig.hasCustomTexture()) {
+            SkullMeta meta = (SkullMeta) item.getItemMeta();
+            if (meta != null) {
+                try {
+                    PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID());
+                    PlayerTextures textures = profile.getTextures();
+
+                    String textureValue = tierConfig.getSkullTexture();
+                    if (textureValue.startsWith("http")) {
+                        textures.setSkin(new URL(textureValue));
+                        profile.setTextures(textures);
+                        meta.setOwnerProfile(profile);
+                    }
+
+                    item.setItemMeta(meta);
+                } catch (MalformedURLException e) {
+                    plugin.getLogger().warning("Invalid skull texture URL for tier " + tierConfig.getTier());
+                }
+            }
+        }
+
+        return item;
+    }
+
+    /**
+     * Create an item with a display name and lore
+     */
+    private ItemStack createItem(Material material, String name, List<String> lore) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(name);
+            if (lore != null && !lore.isEmpty()) {
+                meta.setLore(lore);
+            }
             item.setItemMeta(meta);
         }
         return item;

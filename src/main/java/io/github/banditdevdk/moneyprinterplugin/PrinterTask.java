@@ -41,11 +41,39 @@ public class PrinterTask extends BukkitRunnable {
                 continue;
             }
 
-            // Process fuel and earnings
-            if (printer.getFuelTime() > 0) {
-                // Consume fuel (10 seconds)
-                printer.setFuelTime(Math.max(0, printer.getFuelTime() - 10));
+            boolean canGenerate = true;
 
+            // Handle fuel system if enabled
+            if (config.isFuelEnabled()) {
+                // Process fuel and earnings
+                if (printer.getFuelTime() > 0) {
+                    // Consume fuel (10 seconds)
+                    printer.setFuelTime(Math.max(0, printer.getFuelTime() - 10));
+                    canGenerate = true;
+                } else {
+                    // Printer is out of fuel - don't generate money
+                    canGenerate = false;
+
+                    // Notify if enabled and not already notified
+                    // (but NOT on login - only during active gameplay)
+                    if (config.shouldNotifyFuelEmpty() && !printer.hasNotifiedEmpty()) {
+                        OfflinePlayer owner = Bukkit.getOfflinePlayer(printer.getOwner());
+                        // Only notify if player is currently online (not on join)
+                        if (owner.isOnline() && owner.getPlayer() != null) {
+                            printer.setNotifiedEmpty(true);
+                            Map<String, String> placeholders = createPlaceholders("fuel",
+                                    config.getFuelMaterial().name().toLowerCase().replace("_", " "));
+                            notifyPlayer(printer.getOwner(), "fuel-empty-notification", placeholders);
+                        }
+                    }
+                }
+            } else {
+                // Fuel is disabled - always generate
+                canGenerate = true;
+            }
+
+            // Generate money if conditions are met
+            if (canGenerate) {
                 // Check if printer is at max storage
                 double maxStorage = config.getMaxMoneyStorage();
                 if (printer.getEarnings() >= maxStorage) {
@@ -77,16 +105,6 @@ public class PrinterTask extends BukkitRunnable {
                         notifyPlayer(printer.getOwner(), "storage-full-notification",
                                 createPlaceholders("money", String.format("%.2f", newEarnings)));
                     }
-                }
-            } else {
-                // Printer is out of fuel
-                if (config.shouldNotifyFuelEmpty() && !printer.hasNotifiedEmpty()) {
-                    printer.setNotifiedEmpty(true);
-
-                    // Notify owner
-                    Map<String, String> placeholders = createPlaceholders("fuel",
-                            config.getFuelMaterial().name().toLowerCase().replace("_", " "));
-                    notifyPlayer(printer.getOwner(), "fuel-empty-notification", placeholders);
                 }
             }
         }

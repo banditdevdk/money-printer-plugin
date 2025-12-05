@@ -56,7 +56,7 @@ public class PrinterEvents implements Listener {
         ConfigManager config = plugin.getConfigManager();
 
         // Check if player has permission
-        if (!player.hasPermission("printer.use")) {
+        if (!player.hasPermission("moneyprinter.use")) {
             event.setCancelled(true);
             player.sendMessage("§cYou don't have permission to place printers.");
             return;
@@ -69,11 +69,11 @@ public class PrinterEvents implements Listener {
             return;
         }
 
-        // Check printer limit
-        int maxPrinters = config.getMaxPrintersPerPlayer();
+        // Check printer limit with permission-based system
+        int maxPrinters = getMaxPrintersForPlayer(player);
         int currentPrinters = plugin.getPrinterData().countPrintersByOwner(player.getUniqueId());
 
-        if (currentPrinters >= maxPrinters && !player.hasPermission("printer.admin")) {
+        if (maxPrinters > 0 && currentPrinters >= maxPrinters && !player.hasPermission("moneyprinter.admin")) {
             event.setCancelled(true);
             Map<String, String> placeholders = new HashMap<>();
             placeholders.put("max", String.valueOf(maxPrinters));
@@ -94,7 +94,7 @@ public class PrinterEvents implements Listener {
         }
 
         // Check tier permission
-        if (!player.hasPermission("printer.tier." + tier) && !player.hasPermission("printer.admin")) {
+        if (!player.hasPermission("moneyprinter.tier." + tier) && !player.hasPermission("moneyprinter.admin")) {
             event.setCancelled(true);
             player.sendMessage("§cYou don't have permission to place this tier of printer.");
             return;
@@ -157,7 +157,7 @@ public class PrinterEvents implements Listener {
             Player player = event.getPlayer();
 
             // Check if player can access this printer
-            if (!printer.canAccess(player.getUniqueId()) && !player.hasPermission("printer.admin")) {
+            if (!printer.canAccess(player.getUniqueId()) && !player.hasPermission("moneyprinter.admin")) {
                 player.sendMessage(plugin.getConfigManager().getMessage("not-owner"));
                 return;
             }
@@ -210,15 +210,8 @@ public class PrinterEvents implements Listener {
             handleAddFuel(player, loc, printer);
         } else if (slot == config.getButtonSlot("collect-money")) {
             handleCollectMoney(player, loc, printer);
-        } else {
-            // Check tier upgrade buttons
-            for (int tier : config.getTiers().keySet()) {
-                String buttonKey = "upgrade-tier-" + tier;
-                if (slot == config.getButtonSlot(buttonKey)) {
-                    handleUpgrade(player, loc, printer, tier);
-                    break;
-                }
-            }
+        } else if (slot == config.getButtonSlot("upgrade")) {
+            handleUpgrade(player, loc, printer);
         }
     }
 
@@ -241,6 +234,13 @@ public class PrinterEvents implements Listener {
      */
     private void handleAddFuel(Player player, Location loc, PrinterData.PrinterInfo printer) {
         ConfigManager config = plugin.getConfigManager();
+
+        // Check if fuel is enabled
+        if (!config.isFuelEnabled()) {
+            player.sendMessage("§cFuel is not required for this server!");
+            return;
+        }
+
         Material fuelMaterial = config.getFuelMaterial();
         int fuelMinutes = config.getFuelMinutesPerItem();
         int maxFuelMinutes = config.getMaxFuelMinutes();
@@ -301,31 +301,28 @@ public class PrinterEvents implements Listener {
     }
 
     /**
-     * Handle tier upgrades
+     * Handle tier upgrade - only upgrade to next tier
      */
-    private void handleUpgrade(Player player, Location loc, PrinterData.PrinterInfo printer, int targetTier) {
+    private void handleUpgrade(Player player, Location loc, PrinterData.PrinterInfo printer) {
         ConfigManager config = plugin.getConfigManager();
-        ConfigManager.TierConfig tierConfig = config.getTier(targetTier);
 
-        if (tierConfig == null) {
-            return;
-        }
+        int currentTier = printer.getTier();
+        int nextTierNum = currentTier + 1;
 
-        // Check if already at this tier or higher
-        if (printer.getTier() >= targetTier) {
-            Map<String, String> placeholders = new HashMap<>();
-            placeholders.put("tier", String.valueOf(targetTier));
-            player.sendMessage(config.getMessage("already-tier", placeholders));
+        // Check if already at max tier
+        ConfigManager.TierConfig nextTierConfig = config.getNextTier(currentTier);
+        if (nextTierConfig == null) {
+            player.sendMessage(config.getMessage("already-max-tier"));
             return;
         }
 
         // Check tier permission
-        if (!player.hasPermission("printer.tier." + targetTier) && !player.hasPermission("printer.admin")) {
+        if (!player.hasPermission("moneyprinter.tier." + nextTierNum) && !player.hasPermission("moneyprinter.admin")) {
             player.sendMessage("§cYou don't have permission to upgrade to this tier.");
             return;
         }
 
-        double cost = tierConfig.getUpgradeCost();
+        double cost = nextTierConfig.getUpgradeCost();
 
         // Check if can afford
         if (plugin.getEconomy().getBalance(player) < cost) {
@@ -337,14 +334,30 @@ public class PrinterEvents implements Listener {
 
         // Perform upgrade
         plugin.getEconomy().withdrawPlayer(player, cost);
-        printer.setTier(targetTier);
+        printer.setTier(nextTierNum);
 
         Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("tier", tierConfig.getName());
-        placeholders.put("earnings", String.format("%.2f", tierConfig.getEarnings()));
+        placeholders.put("tier", nextTierConfig.getName());
+        placeholders.put("earnings", String.format("%.2f", nextTierConfig.getEarnings()));
         player.sendMessage(config.getMessage("upgraded", placeholders));
 
         plugin.getPrinterGUI().updateGUI(player, loc);
         plugin.getPrinterData().saveData();
+    }
+
+    /**
+     * Get max printers allowed for a player (checks permissions)
+     */
+    private int getMaxPrintersForPlayer(Player player) {
+        // Check for specific permission-based limits (check high to low)
+        for (int i = 100; i >= 1; i--) {
+            if (player.hasPermission("moneyprinter.max." + i)) {
+                return i;
+            }
+        }
+
+        // Return config default (0 = unlimited)
+        int configMax = plugin.getConfigManager().getMaxPrintersPerPlayer();
+        return configMax;
     }
 }

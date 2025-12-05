@@ -4,7 +4,10 @@
 
 # General Settings
 settings:
+  # Maximum printers per player (0 = unlimited)
+  # Can be overridden with permissions: moneyprinter.max.<number>
   max-printers-per-player: 1
+
   # Worlds where printers are disabled (list world names)
   disabled-worlds:
     - "world_nether"
@@ -12,10 +15,15 @@ settings:
 
 # Fuel Configuration
 fuel:
+  # Require fuel for printers to generate money?
+  enabled: true
+
   # Material type for fuel (PAPER, COAL, DIAMOND, etc.)
-  material: PAPER
+  material: COAL
+
   # How many minutes does 1 fuel item add?
   minutes-per-item: 5
+
   # Maximum fuel time in minutes (60 = 1 hour)
   max-fuel-minutes: 60
 
@@ -23,6 +31,7 @@ fuel:
 money:
   # How often (in minutes) should printers generate money?
   generation-interval: 5
+
   # Maximum money a printer can hold before it stops generating
   max-storage: 10000.0
 
@@ -30,134 +39,162 @@ money:
 notifications:
   # Notify player when printer runs out of fuel?
   fuel-empty: true
+
   # Notify player when printer reaches max money storage?
   storage-full: true
 
+  # Notify on login about printers without fuel?
+  fuel-empty-on-login: false
+
 # Tier Configuration
-# You can add/remove tiers as needed
 # Each tier requires:
 #   - name: Display name
 #   - block: Material type (must be PLAYER_HEAD for custom textures)
 #   - skull-texture: Texture URL in format: http://textures.minecraft.net/texture/HASH
-#                    Leave empty ("") for default Steve head
-#                    Get texture URLs from: https://minecraft-heads.com
 #   - earnings: Money generated per interval
 #   - upgrade-cost: Cost to upgrade TO this tier (tier 1 has no cost)
+#
+#   - **WARNING** changing the block from playerhead, can result in issues! Feel free to change skull-texture.
+#
+
 tiers:
   1:
     name: "Basic Printer"
     block: PLAYER_HEAD
-    skull-texture: ""
+    skull-texture: "http://textures.minecraft.net/texture/f8eecae423359d3f5efd1063a9a7bcfaa43839d75d3b223c808df7961dd173d0"
     earnings: 10.0
     upgrade-cost: 0
   2:
     name: "Advanced Printer"
     block: PLAYER_HEAD
-    skull-texture: ""
+    skull-texture: "http://textures.minecraft.net/texture/6c07d48fd8764bc8d01a10cc6426578862090d9e856f3a8dd7f974a7521efc43"
     earnings: 20.0
     upgrade-cost: 500.0
   3:
     name: "Superior Printer"
     block: PLAYER_HEAD
-    skull-texture: ""
+    skull-texture: "http://textures.minecraft.net/texture/666070ce03a545ee4d263bcf27f36338d249d7cb7a2376f92c1673ae134e04b6"
     earnings: 35.0
     upgrade-cost: 1500.0
-  4:
-    name: "Elite Printer"
-    block: PLAYER_HEAD
-    skull-texture: ""
-    earnings: 50.0
-    upgrade-cost: 2500.0
+
+    4:
+      name: "Elite Printer"
+      block: PLAYER_HEAD
+      skull-texture: "http://textures.minecraft.net/texture/579ee734b739c0d19546d5b4b049c01a055506cc00b0cfcbf177883d2c814c04"
+      earnings: 50.0
+      upgrade-cost: 2500.0
 
 # GUI Customization
 gui:
-  title: "&8&aMoney Printer"
-  rows: 5  # Number of rows (1-6)
-  
+  title: "&8&lMoney Printer"
+  rows: 4  # Number of rows (1-6)
+
   # Background filler item
   filler:
     material: BLACK_STAINED_GLASS_PANE
     name: " "
-  
-  # Button positions and appearance (slot numbers 0-44 for 5 rows)
+
+  # Button positions and appearance (slot numbers 0-35 for 4 rows)
   buttons:
+    # Status display (top center)
+    status:
+      slot: 4
+      material: PLAYER_HEAD
+      name: "&a&l{tier}"
+      lore:
+        - "&7Fuel: &f{fuel}"
+        - "&7Earnings: &6{earnings}$/interval"
+        - ""
+        - "&7Total Money: &6{money}$"
+
+    # Add fuel button (middle left)
     add-fuel:
       slot: 11
-      material: PAPER
-      name: "&7Add Fuel &8(Requires 1x {fuel})"
-    
+      material: COAL
+      name: "&e&lAdd Fuel"
+      lore:
+        - "&7Click to add fuel"
+        - "&7Requires: &f1x Coal"
+        - ""
+        - "&7Current: &f{fuel}"
+        - "&7Max: &f{max-fuel}"
+
+    # Collect money button (middle right)
     collect-money:
       slot: 15
-      material: PAPER
-      name: "&6Collect Money &7({money}$)"
-    
-    status:
-      slot: 13
-      material: BOOK
-      name: "&7Tier: &a{tier}&7 | Fuel: &f{fuel}"
-    
-    upgrade-tier-2:
-      slot: 30
-      material: IRON_INGOT
-      name: "&f↑ &aTier 2 &8({cost}$) &7- {earnings}$/interval"
-    
-    upgrade-tier-3:
-      slot: 31
       material: GOLD_INGOT
-      name: "&6↑ &eTier 3 &8({cost}$) &7- {earnings}$/interval"
-    
-    upgrade-tier-4:
-      slot: 32
-      material: DIAMOND
-      name: "&b↑ &bTier 4 &8({cost}$) &7- {earnings}$/interval"
+      name: "&6&lCollect Money"
+      lore:
+        - "&7Click to collect earnings"
+        - ""
+        - "&7Available: &6{money}$"
+
+    # Upgrade button (bottom center) - changes based on current tier
+    upgrade:
+      slot: 22
+      material: EMERALD
+      name: "&a&lUpgrade to {next-tier}"
+      lore:
+        - "&7Cost: &6{cost}$"
+        - "&7Earnings: &6{next-earnings}$/interval"
+        - ""
+        - "&eClick to upgrade!"
+
+      # When at max tier
+      max-tier-material: BARRIER
+      max-tier-name: "&c&lMax Tier Reached"
+      max-tier-lore:
+        - "&7This printer is already"
+        - "&7at the maximum tier!"
 
 # Messages (supports color codes with &)
 messages:
-  prefix: "&2Printer &7» "
-  
+  prefix: "&8[&2Printer&8] &7"
+
   # Placement messages
-  placed: "{prefix}&fMoney printer placed with &a{tier}&f!"
-  placed-instructions: "{prefix}&eUse &f/mp remove &eto remove it."
-  
+  placed: "{prefix}&aMoneyprinter placed! &7({tier})"
+  placed-instructions: "{prefix}&7Use &f/moneyprinter remove &7to remove it."
+
   # Fuel messages
-  fuel-added: "{prefix}&aAdded {minutes}m of fuel."
-  fuel-empty-notification: "{prefix}&cOut of fuel! Add {fuel} to continue."
-  fuel-max: "{prefix}&cThis printer already has maximum fuel ({max} minutes)."
+  fuel-added: "{prefix}&aAdded &f{minutes} minutes &aof fuel!"
+  fuel-empty-notification: "{prefix}&cYour printer is out of fuel! Add coal to continue."
+  fuel-max: "{prefix}&cThis printer already has maximum fuel! &7({max} minutes)"
   no-fuel-item: "{prefix}&cYou don't have any {fuel} in your inventory!"
-  
+
   # Money messages
   money-collected: "{prefix}&aCollected &6{amount}$ &afrom the printer!"
   no-money: "{prefix}&cThis printer has no money to collect."
-  storage-full-notification: "{prefix}&eYour printer is full! &7({money}$)"
-  
+  storage-full-notification: "{prefix}&eYour printer's storage is full! &7({money}$)"
+
   # Upgrade messages
-  upgraded: "{prefix}&aUpgraded to {tier}! &7Earnings: {earnings}$/interval"
-  already-tier: "{prefix}&eThe printer is already at least {tier}."
-  cannot-afford: "{prefix}&cYou can't afford this upgrade ({cost}$)"
-  
+  upgraded: "{prefix}&aUpgraded to &e{tier}&a! &7Earnings: &6{earnings}$/interval"
+  already-max-tier: "{prefix}&eThis printer is already at maximum tier!"
+  cannot-afford: "{prefix}&cYou can't afford this upgrade! &7(Costs &6{cost}$&7)"
+
   # Remove messages
   removed: "{prefix}&aMoney printer removed! &7({tier})"
   not-printer: "{prefix}&cThat's not a money printer!"
   not-owner: "{prefix}&cYou don't own this printer!"
-  look-at-printer: "{prefix}&cYou must be looking at a printer to remove it!"
-  
+  look-at-printer: "{prefix}&cYou must be looking at a printer to use this command!"
+
   # Break protection
   cannot-break: "&c&l✖ &cYou can't break a money printer!"
-  use-command: "&7Use &f/mp remove &7to remove it."
-  
+  use-command: "&7Use &f/moneyprinter remove &7to remove it."
+
   # Limits
   max-printers: "{prefix}&cYou've reached the maximum number of printers! &7({max})"
-  
+
   # Admin messages
-  given: "{prefix}&aGave {player} a {tier} printer."
-  received: "{prefix}&aYou received a {tier} printer!"
-  
+  given: "{prefix}&aGave &f{player} &aa &e{tier} &aprinter."
+  received: "{prefix}&aYou received a &e{tier} &aprinter!"
+
   # Help messages
-  help-header: "&7&m-----&r &eMoney Printer Commands &7&m-----"
-  help-remove: "&e/mp remove &7- Remove the printer you're looking at"
-  help-addfriend: "&e/mp addfriend <player> &7- Add a friend to your printer"
-  help-removefriend: "&e/mp removefriend <player> &7- Remove a friend from your printer"
-  help-friends: "&e/mp friends &7- List friends of a printer"
-  help-give: "&e/mp give <player> [tier] &7- Give a printer (admin)"
-  help-list: "&e/mp list &7- List all printers (admin)"
-  help-reload: "&e/mp reload &7- Reload configuration (admin)"
+  help-header: "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n&2&lMoney Printer &7Commands\n&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  help-remove: "&e/moneyprinter remove &8- &7Remove a printer"
+  help-addfriend: "&e/moneyprinter addfriend <player> &8- &7Add printer friend"
+  help-removefriend: "&e/moneyprinter removefriend <player> &8- &7Remove friend"
+  help-friends: "&e/moneyprinter friends &8- &7List printer friends"
+  help-give: "&c/moneyprinter give <player> [tier] &8- &7Give a printer"
+  help-list: "&c/moneyprinter list &8- &7List all printers"
+  help-reload: "&c/moneyprinter reload &8- &7Reload configuration"
+  help-footer: "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

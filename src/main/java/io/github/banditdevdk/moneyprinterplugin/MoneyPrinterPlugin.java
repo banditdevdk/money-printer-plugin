@@ -35,11 +35,9 @@ public final class MoneyPrinterPlugin extends JavaPlugin {
         // Register events
         getServer().getPluginManager().registerEvents(new PrinterEvents(this), this);
 
-        // Register commands
+        // Register commands - only /moneyprinter and /mp (removed /printer)
         PrinterCommand commandExecutor = new PrinterCommand(this);
-        getCommand("mp").setExecutor(commandExecutor);
         getCommand("moneyprinter").setExecutor(commandExecutor);
-        getCommand("printer").setExecutor(commandExecutor);
 
         // Start printer task (runs every 10 seconds)
         new PrinterTask(this).runTaskTimer(this, 200L, 200L); // 200 ticks = 10 seconds

@@ -7,35 +7,30 @@ author: BanditDevDK
 description: Money printer plugin with customizable tiers and fuel system
 
 commands:
-  mp:
-    description: Main money printer command
-    usage: /mp <help|remove|give|list|reload>
   moneyprinter:
-    description: Alias for mp command
-    usage: /moneyprinter <help|remove|give|list|reload>
-  printer:
-    description: Alias for mp command
-    usage: /printer <help|remove|give|list|reload>
+    description: Main money printer command
+    usage: /moneyprinter <help|remove|give|list|reload|addfriend|removefriend|friends>
+    aliases: [mp]
 
 permissions:
-  printer.use:
+  moneyprinter.use:
     description: Allows using money printers
     default: true
-  printer.remove:
+  moneyprinter.remove:
     description: Allows removing own printers
     default: true
-  printer.admin:
-    description: Admin commands
+  moneyprinter.admin:
+    description: Admin commands and permissions
     default: op
-  printer.tier.1:
+  moneyprinter.tier.1:
     description: Access to tier 1 printers
     default: true
-  printer.tier.2:
+  moneyprinter.tier.2:
     description: Access to tier 2 printers
     default: true
-  printer.tier.3:
+  moneyprinter.tier.3:
     description: Access to tier 3 printers
     default: true
-  printer.tier.4:
-    description: Access to tier 4 printers
-    default: true
+  moneyprinter.max.*:
+    description: Permission-based max printer limits (e.g., moneyprinter.max.5)
+    default: false

@@ -17,6 +17,7 @@ public class ConfigManager {
     // Cached config values
     private int maxPrintersPerPlayer;
     private List<String> disabledWorlds;
+    private boolean fuelEnabled;
     private Material fuelMaterial;
     private int fuelMinutesPerItem;
     private int maxFuelMinutes;
@@ -24,6 +25,7 @@ public class ConfigManager {
     private double maxMoneyStorage;
     private boolean notifyFuelEmpty;
     private boolean notifyStorageFull;
+    private boolean notifyFuelEmptyOnLogin;
     private Map<Integer, TierConfig> tiers;
 
     public ConfigManager(MoneyPrinterPlugin plugin) {
@@ -44,12 +46,13 @@ public class ConfigManager {
         disabledWorlds = config.getStringList("settings.disabled-worlds");
 
         // Load fuel settings
-        String fuelMaterialName = config.getString("fuel.material", "PAPER");
+        fuelEnabled = config.getBoolean("fuel.enabled", true);
+        String fuelMaterialName = config.getString("fuel.material", "COAL");
         try {
             fuelMaterial = Material.valueOf(fuelMaterialName.toUpperCase());
         } catch (IllegalArgumentException e) {
-            plugin.getLogger().warning("Invalid fuel material: " + fuelMaterialName + ". Using PAPER.");
-            fuelMaterial = Material.PAPER;
+            plugin.getLogger().warning("Invalid fuel material: " + fuelMaterialName + ". Using COAL.");
+            fuelMaterial = Material.COAL;
         }
         fuelMinutesPerItem = config.getInt("fuel.minutes-per-item", 5);
         maxFuelMinutes = config.getInt("fuel.max-fuel-minutes", 60);
@@ -61,6 +64,7 @@ public class ConfigManager {
         // Load notification settings
         notifyFuelEmpty = config.getBoolean("notifications.fuel-empty", true);
         notifyStorageFull = config.getBoolean("notifications.storage-full", true);
+        notifyFuelEmptyOnLogin = config.getBoolean("notifications.fuel-empty-on-login", false);
 
         // Load tiers
         loadTiers();
@@ -91,8 +95,13 @@ public class ConfigManager {
                 Material block;
                 try {
                     block = Material.valueOf(blockName.toUpperCase());
+                    // Force PLAYER_HEAD - don't allow other block types
+                    if (block != Material.PLAYER_HEAD) {
+                        plugin.getLogger().warning("Block type for tier " + tierNum + " must be PLAYER_HEAD! Using PLAYER_HEAD instead of " + blockName);
+                        block = Material.PLAYER_HEAD;
+                    }
                 } catch (IllegalArgumentException e) {
-                    plugin.getLogger().warning("Invalid block for tier " + tierNum + ": " + blockName);
+                    plugin.getLogger().warning("Invalid block for tier " + tierNum + ": " + blockName + ". Using PLAYER_HEAD.");
                     block = Material.PLAYER_HEAD;
                 }
 
@@ -118,10 +127,15 @@ public class ConfigManager {
      * Create default tiers if none exist
      */
     private void createDefaultTiers() {
-        tiers.put(1, new TierConfig(1, "Basic Printer", Material.PLAYER_HEAD, "", 10.0, 0.0));
-        tiers.put(2, new TierConfig(2, "Advanced Printer", Material.PLAYER_HEAD, "", 20.0, 500.0));
-        tiers.put(3, new TierConfig(3, "Superior Printer", Material.PLAYER_HEAD, "", 35.0, 1500.0));
-        tiers.put(4, new TierConfig(4, "Elite Printer", Material.PLAYER_HEAD, "", 50.0, 2500.0));
+        tiers.put(1, new TierConfig(1, "Iron Printer", Material.PLAYER_HEAD,
+                "http://textures.minecraft.net/texture/f8eecae423359d3f5efd1063a9a7bcfaa43839d75d3b223c808df7961dd173d0",
+                10.0, 0.0));
+        tiers.put(2, new TierConfig(2, "Gold Printer", Material.PLAYER_HEAD,
+                "http://textures.minecraft.net/texture/6c07d48fd8764bc8d01a10cc6426578862090d9e856f3a8dd7f974a7521efc43",
+                20.0, 500.0));
+        tiers.put(3, new TierConfig(3, "Diamond Printer", Material.PLAYER_HEAD,
+                "http://textures.minecraft.net/texture/666070ce03a545ee4d263bcf27f36338d249d7cb7a2376f92c1673ae134e04b6",
+                35.0, 1500.0));
     }
 
     /**
@@ -151,8 +165,10 @@ public class ConfigManager {
     }
 
     // Getters
+    public FileConfiguration getConfig() { return config; }
     public int getMaxPrintersPerPlayer() { return maxPrintersPerPlayer; }
     public List<String> getDisabledWorlds() { return disabledWorlds; }
+    public boolean isFuelEnabled() { return fuelEnabled; }
     public Material getFuelMaterial() { return fuelMaterial; }
     public int getFuelMinutesPerItem() { return fuelMinutesPerItem; }
     public int getMaxFuelMinutes() { return maxFuelMinutes; }
@@ -160,6 +176,7 @@ public class ConfigManager {
     public double getMaxMoneyStorage() { return maxMoneyStorage; }
     public boolean shouldNotifyFuelEmpty() { return notifyFuelEmpty; }
     public boolean shouldNotifyStorageFull() { return notifyStorageFull; }
+    public boolean shouldNotifyFuelEmptyOnLogin() { return notifyFuelEmptyOnLogin; }
     public Map<Integer, TierConfig> getTiers() { return tiers; }
     public TierConfig getTier(int tier) { return tiers.get(tier); }
     public int getHighestTier() {
@@ -167,15 +184,23 @@ public class ConfigManager {
     }
 
     /**
+     * Get the next tier after the given tier, or null if at max
+     */
+    public TierConfig getNextTier(int currentTier) {
+        int nextTierNum = currentTier + 1;
+        return tiers.get(nextTierNum);
+    }
+
+    /**
      * Get GUI configuration value
      */
     public String getGUITitle() {
         return ChatColor.translateAlternateColorCodes('&',
-                config.getString("gui.title", "&8&aMoney Printer"));
+                config.getString("gui.title", "&8&lMoney Printer"));
     }
 
     public int getGUIRows() {
-        return Math.max(1, Math.min(6, config.getInt("gui.rows", 5)));
+        return Math.max(1, Math.min(6, config.getInt("gui.rows", 4)));
     }
 
     public Material getGUIFiller() {
@@ -216,6 +241,23 @@ public class ConfigManager {
         }
 
         return name;
+    }
+
+    public List<String> getButtonLore(String button, Map<String, String> placeholders) {
+        List<String> lore = config.getStringList("gui.buttons." + button + ".lore");
+        List<String> coloredLore = new ArrayList<>();
+
+        for (String line : lore) {
+            line = ChatColor.translateAlternateColorCodes('&', line);
+            if (placeholders != null) {
+                for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+                    line = line.replace("{" + entry.getKey() + "}", entry.getValue());
+                }
+            }
+            coloredLore.add(line);
+        }
+
+        return coloredLore;
     }
 
     /**

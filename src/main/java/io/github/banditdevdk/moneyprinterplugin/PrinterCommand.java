@@ -72,21 +72,25 @@ public class PrinterCommand implements CommandExecutor {
     }
 
     /**
-     * Show help message
+     * Show help message - only show admin commands if player has permission
      */
     private void showHelp(CommandSender sender) {
         ConfigManager config = plugin.getConfigManager();
+
         sender.sendMessage(config.getMessage("help-header"));
         sender.sendMessage(config.getMessage("help-remove"));
         sender.sendMessage(config.getMessage("help-addfriend"));
         sender.sendMessage(config.getMessage("help-removefriend"));
         sender.sendMessage(config.getMessage("help-friends"));
 
-        if (sender.hasPermission("printer.admin")) {
+        // Only show admin commands if player has permission
+        if (sender.hasPermission("moneyprinter.admin")) {
             sender.sendMessage(config.getMessage("help-give"));
             sender.sendMessage(config.getMessage("help-list"));
             sender.sendMessage(config.getMessage("help-reload"));
         }
+
+        sender.sendMessage(config.getMessage("help-footer"));
     }
 
     /**
@@ -101,7 +105,7 @@ public class PrinterCommand implements CommandExecutor {
         Player player = (Player) sender;
         ConfigManager config = plugin.getConfigManager();
 
-        if (!player.hasPermission("printer.remove")) {
+        if (!player.hasPermission("moneyprinter.remove")) {
             player.sendMessage("§cYou don't have permission to use this command.");
             return true;
         }
@@ -122,7 +126,7 @@ public class PrinterCommand implements CommandExecutor {
         }
 
         // Check ownership or admin permission
-        if (!printer.getOwner().equals(player.getUniqueId()) && !player.hasPermission("printer.admin")) {
+        if (!printer.getOwner().equals(player.getUniqueId()) && !player.hasPermission("moneyprinter.admin")) {
             player.sendMessage(config.getMessage("not-owner"));
             return true;
         }
@@ -161,13 +165,13 @@ public class PrinterCommand implements CommandExecutor {
     private boolean handleGive(CommandSender sender, String[] args) {
         ConfigManager config = plugin.getConfigManager();
 
-        if (!sender.hasPermission("printer.admin")) {
+        if (!sender.hasPermission("moneyprinter.admin")) {
             sender.sendMessage("§cYou don't have permission to use this command.");
             return true;
         }
 
         if (args.length < 2) {
-            sender.sendMessage("§cUsage: /mp give <player> [tier]");
+            sender.sendMessage("§cUsage: /moneyprinter give <player> [tier]");
             return true;
         }
 
@@ -209,7 +213,7 @@ public class PrinterCommand implements CommandExecutor {
      * Handle /mp list command
      */
     private boolean handleList(CommandSender sender) {
-        if (!sender.hasPermission("printer.admin")) {
+        if (!sender.hasPermission("moneyprinter.admin")) {
             sender.sendMessage("§cYou don't have permission to use this command.");
             return true;
         }
@@ -221,7 +225,9 @@ public class PrinterCommand implements CommandExecutor {
             return true;
         }
 
-        sender.sendMessage("§7§m-----§r §ePrinter List §7§m-----");
+        sender.sendMessage("§8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        sender.sendMessage("§2&lMoney Printer List");
+        sender.sendMessage("§8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         for (Map.Entry<Location, PrinterData.PrinterInfo> entry : printers.entrySet()) {
             Location loc = entry.getKey();
             PrinterData.PrinterInfo printer = entry.getValue();
@@ -229,7 +235,7 @@ public class PrinterCommand implements CommandExecutor {
             String owner = Bukkit.getOfflinePlayer(printer.getOwner()).getName();
             ConfigManager.TierConfig tierConfig = plugin.getConfigManager().getTier(printer.getTier());
 
-            sender.sendMessage(String.format("§7Owner: §f%s §7| Tier: §a%s §7| Money: §a%.2f$ §7| Fuel: §f%s",
+            sender.sendMessage(String.format("§7Owner: §f%s §7| Tier: §a%s §7| Money: §6%.2f$ §7| Fuel: §f%s",
                     owner, tierConfig.getName(), printer.getEarnings(), printer.getFormattedFuelTime()));
         }
 
@@ -240,7 +246,7 @@ public class PrinterCommand implements CommandExecutor {
      * Handle /mp reload command
      */
     private boolean handleReload(CommandSender sender) {
-        if (!sender.hasPermission("printer.admin")) {
+        if (!sender.hasPermission("moneyprinter.admin")) {
             sender.sendMessage("§cYou don't have permission to use this command.");
             return true;
         }
@@ -262,25 +268,17 @@ public class PrinterCommand implements CommandExecutor {
         SkullMeta meta = (SkullMeta) item.getItemMeta();
 
         if (meta != null) {
-            meta.setDisplayName("§aMoney Printer §7(" + tierConfig.getName() + ")");
+            meta.setDisplayName("§a&lMoney Printer §8(" + tierConfig.getName() + "§8)");
 
             // Apply custom texture if available
             if (tierConfig.hasCustomTexture()) {
                 try {
-                    // Create a player profile with the custom texture
                     PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID());
                     PlayerTextures textures = profile.getTextures();
 
-                    // The texture URL format: http://textures.minecraft.net/texture/[base64_value]
                     String textureValue = tierConfig.getSkullTexture();
 
-                    // If it's a base64 value (starts with eyJ), convert to URL
-                    if (textureValue.startsWith("eyJ")) {
-                        // For now, just log that custom textures need URLs
-                        plugin.getLogger().warning("Custom skull textures require texture URLs, not base64 values.");
-                        plugin.getLogger().warning("Please use format: http://textures.minecraft.net/texture/HASH");
-                    } else if (textureValue.startsWith("http")) {
-                        // It's already a URL
+                    if (textureValue.startsWith("http")) {
                         textures.setSkin(new URL(textureValue));
                         profile.setTextures(textures);
                         meta.setOwnerProfile(profile);
@@ -308,7 +306,7 @@ public class PrinterCommand implements CommandExecutor {
         Player player = (Player) sender;
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /mp addfriend <player>");
+            player.sendMessage("§cUsage: /moneyprinter addfriend <player>");
             return true;
         }
 
@@ -350,7 +348,7 @@ public class PrinterCommand implements CommandExecutor {
         printer.addFriend(target.getUniqueId());
         plugin.getPrinterData().saveData();
 
-        player.sendMessage("§aAdded " + target.getName() + " as a friend to this printer!");
+        player.sendMessage("§a" + target.getName() + " added as a friend to this printer!");
         target.sendMessage("§a" + player.getName() + " added you as a friend to their printer!");
 
         return true;
@@ -368,7 +366,7 @@ public class PrinterCommand implements CommandExecutor {
         Player player = (Player) sender;
 
         if (args.length < 2) {
-            player.sendMessage("§cUsage: /mp removefriend <player>");
+            player.sendMessage("§cUsage: /moneyprinter removefriend <player>");
             return true;
         }
 
@@ -438,7 +436,7 @@ public class PrinterCommand implements CommandExecutor {
             return true;
         }
 
-        if (!printer.canAccess(player.getUniqueId()) && !player.hasPermission("printer.admin")) {
+        if (!printer.canAccess(player.getUniqueId()) && !player.hasPermission("moneyprinter.admin")) {
             player.sendMessage(plugin.getConfigManager().getMessage("not-owner"));
             return true;
         }
@@ -450,7 +448,9 @@ public class PrinterCommand implements CommandExecutor {
             return true;
         }
 
-        player.sendMessage("§7§m-----§r §ePrinter Friends §7§m-----");
+        player.sendMessage("§8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        player.sendMessage("§2&lPrinter Friends");
+        player.sendMessage("§8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         for (UUID friendUUID : friends) {
             OfflinePlayer friend = Bukkit.getOfflinePlayer(friendUUID);
             String status = friend.isOnline() ? "§a●" : "§7●";
@@ -458,5 +458,21 @@ public class PrinterCommand implements CommandExecutor {
         }
 
         return true;
+    }
+
+    /**
+     * Get max printers allowed for a player (checks permissions)
+     */
+    public int getMaxPrintersForPlayer(Player player) {
+        // Check for specific permission-based limits
+        for (int i = 100; i >= 1; i--) {
+            if (player.hasPermission("moneyprinter.max." + i)) {
+                return i;
+            }
+        }
+
+        // Return config default (0 = unlimited)
+        int configMax = plugin.getConfigManager().getMaxPrintersPerPlayer();
+        return configMax;
     }
 }
